@@ -1,6 +1,7 @@
 require 'rubygems'
 require 'bundler/setup'
 require 'shellwords'
+require 'colorize'
 
 class Command
 
@@ -24,6 +25,8 @@ end
 class Project
 
   DEFAULT_BUILD_SCRIPT_PATH = "./script/build"
+
+  attr_reader :working_dir
 
   def initialize(working_dir)
     raise ArgumentError, "#{working_dir} doesn't exist" unless File.exists?(working_dir)
@@ -62,7 +65,7 @@ class Project
     res[/^[^ ]+/]
   end
 
-  # Updates the repository to latest changes
+  # Update the repository to latest changes
   def update
     run_command "git fetch"
   end
@@ -95,26 +98,111 @@ class Project
 
 end
 
+# 1. Fetch latest changes
+# 2. Find latest revision
+# 3. If there is a build log for this revision, do nothing
+# 4. Otherwise, build
+# 5. Save result in a log file
+# 6. Display result of the build
+# 7. Wait for a while
+# 8. Go to the next project
 class Nitpicker
-  # 1. Update everything
-  # 2. Get latest revision
-  # 3. If revision has been build, do nothing
-  # 4. If revision hasn't been build, build it
-  # 5. Save result in a log file
-  # 6. Display result of the build
+
+  # Time to wait before checking another project (in seconds)
+  DELAY_BETWEEN_PROJECTS = 5
+
+  def initialize(working_dir)
+    raise ArgumentError, "#{working_dir} doesn't exist" unless File.exists?(working_dir)
+    @working_dir = working_dir
+  end
+
+  # Update and build each project sequencially
+  #
+  # @param io [Object] Anything responding to :puts, all messages will be put in here
+  #
+  # @todo Clean the build logs after a while
+  # @todo Catch signals properly
+  def iterate(io = nil)
+    for project in projects
+      update_and_build project, io
+      sleep DELAY_BETWEEN_PROJECTS
+    end
+  end
+
+  private
+
+  # Update a project and build it if needed
+  #
+  # @param project [Project] The project to update and build
+  # @param io [Object] Anything responding to :puts, all messages will be put in here
+  #
+  # @todo Clean the test.log before starting
+  #
+  # @return [TrueClass,FalseClass] True if everything went well, false otherwise
+  def update_and_build(project, io = nil)
+    begin
+      project.update
+    rescue Command::CommandError => error
+      if io
+        io.puts "Cannot update project #{project.name}".red
+        io.puts error.message
+      end
+      return false
+    end
+    begin
+      revision = project.latest_revision
+    rescue Command::CommandError => error
+      if io
+        io.puts "Cannot get latest revision for project #{project.name}".red
+        io.puts error.message
+      end
+      return false
+    end
+    unless build_log_exists?(project, revision)
+      io.puts "Starting build for #{project.name} @ #{revision}" if io
+      success = false
+      File.open(build_log_path(project, revision), 'w') do |f|
+        begin
+          f << project.build(revision)
+          success = true
+        rescue Command::CommandError => error
+          f << error
+        end
+      end
+      if success
+        io.puts "Build ok for #{project.name} @ #{revision}".green if io
+      else
+        io.puts "Build failed for #{project.name} @ #{revision}".red if io
+        return false
+      end
+    end
+    return true
+  end
+
+  # @return [Array<Project>] An array of all projects in the working dir
+  def projects
+    Dir.glob(File.join(@working_dir, '*')).map{|entry| File.directory?(entry) ? Project.new(entry) : nil }.compact
+  end
+
+  # @param project [Project]
+  # @param revision [String] A git revision hash
+  # @return [String] The path of the build log for given project/revision
+  def build_log_path(project, revision)
+    File.join(project.working_dir, revision + '.log')
+  end
+
+  # @param project [Project]
+  # @param revision [String] A git revision hash
+  # @return [TrueClass,FalseClass] Wether the build log exists for the project/revision couple
+  def build_log_exists?(project, revision)
+    File.exists?(build_log_path(project, revision))
+  end
+
 end
 
-#p = Project.new('/home/benoit/eyeka/apps/orca-upload')
-
-#puts "Ruby: #{p.ruby_version}"
-
-#res = p.build '4d9690766d4c2ae7c4431404ab0581d76f170e76'
-#File.open('result.log', 'w') do |f|
-#  f << res
-#end
-#
-#puts $?
-
-#p.update
-#rev = p.latest_revision
-#puts p.build rev
+if __FILE__ == $0
+  n = Nitpicker.new('work')
+  while true
+    n.iterate($stdout)
+  end
+end

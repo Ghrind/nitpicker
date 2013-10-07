@@ -4,20 +4,24 @@ require 'rspec/autorun'
 require 'fileutils'
 
 # @return [String] The path of the test working dir
-def spec_work_dir
-  @spec_work_dir ||= File.expand_path(File.join(File.dirname(__FILE__), '..', 'tmp', 'work'))
+def test_working_path
+  @test_working_path ||= File.expand_path(File.join(File.dirname(__FILE__), '..', 'tmp', 'work'))
 end
 
-# Initialize working dir
-if File.exists?(spec_work_dir)
-  FileUtils.rm_rf(spec_work_dir)
+def initialize_test_working_dir
+  # Initialize working dir
+  if File.exists?(test_working_path)
+    FileUtils.rm_rf(test_working_path)
+  end
+
+  FileUtils.mkpath(test_working_path)
 end
 
-FileUtils.mkpath(spec_work_dir)
+initialize_test_working_dir
 
 # @return [String] The path of a test project
 def project_path(name)
-  File.join(spec_work_dir, name)
+  File.join(test_working_path, name)
 end
 
 # @param [Object] If a Symbol is provided, it will be used as repository state.
