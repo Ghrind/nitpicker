@@ -13,9 +13,12 @@ class Command
   end
 
   def run
-    # puts "Running #{@line}"
-    res = `#{@line} 2>&1`
-    raise CommandError, res unless $? == 0
+    res = ''
+    Bundler.with_clean_env do
+      # puts "Running #{@line}"
+      res = `#{@line} 2>&1`
+      raise CommandError, res unless $? == 0
+    end
     res
   end
 
