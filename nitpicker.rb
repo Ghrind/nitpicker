@@ -64,7 +64,7 @@ class Project
 
   # @return [String] Latest known revision
   def latest_revision
-    res = run_command "git log --pretty=oneline origin^..origin"
+    res = run_command "git log --pretty=oneline origin/#{current_branch}^..origin/#{current_branch}"
     res[/^[^ ]+/]
   end
 
@@ -74,6 +74,11 @@ class Project
   end
 
   private
+
+  # @return [String] The current git branch
+  def current_branch
+    run_command("git rev-parse --abbrev-ref HEAD").strip
+  end
 
   # Checkouts the working dir to desired revision
   # @param revision [String] Desired revision

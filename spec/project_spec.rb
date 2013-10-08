@@ -61,7 +61,20 @@ describe Project do
     end
   end
 
+  describe '#current_branch' do
+    it "should get current branch name" do
+      project = get_project('project_git_1', git: true)
+      project.send(:current_branch).should == 'master'
+    end
+  end
+
   describe '#latest_revision' do
+    it "should get the origin for the current branch" do
+      project = get_project('project_git_1', git: true)
+      project.stub(current_branch: 'mybranch')
+      Command.should_receive(:new).with(/origin\/mybranch\^\.\.origin\/mybranch/).and_return(double(Command, run: ''))
+      project.latest_revision
+    end
     it "should return the latest git revision" do
       project_1 = get_project('project_git_1', git: true)
       project_1.latest_revision.should == '398feb1f547aad595999920ccd45aea51a6acd6e'
