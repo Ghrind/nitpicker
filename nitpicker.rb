@@ -166,7 +166,7 @@ class Nitpicker
       return false
     end
     unless build_log_exists?(project, revision)
-      io.puts "Starting build for #{project.name} @ #{revision}" if io
+      io.puts "Starting build for #{project.name} @ #{revision} (#{Time.now.strftime('%Y-%m-%d %H:%M:%S')})" if io
       success = false
       File.open(build_log_path(project, revision), 'w') do |f|
         begin
