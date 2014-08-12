@@ -123,6 +123,11 @@ class Nitpicker
     @working_dir = working_dir
   end
 
+  # Main loop, check all sequencially until interruption
+  #
+  # @param io [Object] Anything responding to :puts, all messages will be put in here
+  #
+  # @todo Clean the build logs after a while
   def run(io = nil)
     previous_projects_statuses = {}
 
@@ -130,14 +135,12 @@ class Nitpicker
       projects_statuses = iterate(io)
 
       if previous_projects_statuses != projects_statuses
-        puts "Current state:"
-        puts "#{previous_projects_statuses.inspect}"
-        puts "#{projects_statuses.inspect}"
+        io.puts "Current state:"
         projects_statuses.each_pair do |project_name, status|
           if status
-            puts "  - #{project_name}: OK".green
+            io.puts "  - #{project_name}: OK".green
           else
-            puts "  - #{project_name}: Failed".red
+            io.puts "  - #{project_name}: Failed".red
           end
         end
       end
@@ -153,9 +156,6 @@ class Nitpicker
   # Update and build each project sequencially
   #
   # @param io [Object] Anything responding to :puts, all messages will be put in here
-  #
-  # @todo Clean the build logs after a while
-  # @todo Catch signals properly
   def iterate(io = nil)
     projects_statuses = {}
     for project in projects
