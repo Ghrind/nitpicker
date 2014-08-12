@@ -191,10 +191,6 @@ describe Nitpicker do
 
       @nitpicker.iterate
     end
-    it "should wait after all projects" do
-      @nitpicker.should_receive(:sleep).with(Nitpicker::DELAY_BETWEEN_PROJECTS).exactly(2).times
-      @nitpicker.iterate
-    end
   end
 
 end

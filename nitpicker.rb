@@ -123,6 +123,33 @@ class Nitpicker
     @working_dir = working_dir
   end
 
+  def run(io = nil)
+    previous_projects_statuses = {}
+
+    while true
+      projects_statuses = iterate(io)
+
+      if previous_projects_statuses != projects_statuses
+        puts "Current state:"
+        puts "#{previous_projects_statuses.inspect}"
+        puts "#{projects_statuses.inspect}"
+        projects_statuses.each_pair do |project_name, status|
+          if status
+            puts "  - #{project_name}: OK".green
+          else
+            puts "  - #{project_name}: Failed".red
+          end
+        end
+      end
+
+      previous_projects_statuses = projects_statuses
+
+      sleep DELAY_BETWEEN_PROJECTS
+    end
+  rescue Interrupt
+    return
+  end
+
   # Update and build each project sequencially
   #
   # @param io [Object] Anything responding to :puts, all messages will be put in here
@@ -130,10 +157,11 @@ class Nitpicker
   # @todo Clean the build logs after a while
   # @todo Catch signals properly
   def iterate(io = nil)
+    projects_statuses = {}
     for project in projects
-      update_and_build project, io
-      sleep DELAY_BETWEEN_PROJECTS
+      projects_statuses[project.name] = update_and_build(project, io)
     end
+    projects_statuses
   end
 
   private
@@ -214,7 +242,5 @@ end
 
 if __FILE__ == $0
   n = Nitpicker.new('work')
-  while true
-    n.iterate($stdout)
-  end
+  n.run($stdout)
 end
