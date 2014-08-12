@@ -64,8 +64,7 @@ class Project
 
   # @return [String] Latest known revision
   def latest_revision
-    res = run_command "git log --pretty=oneline origin/#{current_branch}^..origin/#{current_branch}"
-    res[/^[^ ]+/]
+    res = run_command "git log -1 --pretty=format:%H origin/#{current_branch}^..origin/#{current_branch}"
   end
 
   # Update the repository to latest changes
@@ -196,7 +195,12 @@ class Nitpicker
   # @param revision [String] A git revision hash
   # @return [String] The path of the build log for given project/revision
   def build_log_path(project, revision)
-    File.join(project.working_dir, revision + '.log')
+    short_rev = revision[0..6]
+    if File.directory?(File.join(project.working_dir, 'log'))
+      File.join(project.working_dir, 'log', short_rev + '.log')
+    else
+      File.join(project.working_dir, short_rev + '.log')
+    end
   end
 
   # @param project [Project]

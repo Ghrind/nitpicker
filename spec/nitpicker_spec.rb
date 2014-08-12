@@ -16,9 +16,17 @@ describe Nitpicker do
   end
 
   describe '#build_log_path' do
-    it "should return the path for given project, revision" do
-      project = get_project('foobar')
-      Nitpicker.new(test_working_path).send(:build_log_path, project, 'my_revision').should == project_path(project.name) + '/my_revision.log'
+    context 'when the log directory exists' do
+      it "should return the path for given project, revision" do
+        project = get_project('foobar', log_dir: true)
+        Nitpicker.new(test_working_path).send(:build_log_path, project, 'my_revision').should == project_path(project.name) + '/log/my_revi.log'
+      end
+    end
+    context "when the log directory doesn't exist" do
+      it "should return the path for given project, revision" do
+        project = get_project('foobar')
+        Nitpicker.new(test_working_path).send(:build_log_path, project, 'my_revision').should == project_path(project.name) + '/my_revi.log'
+      end
     end
   end
 

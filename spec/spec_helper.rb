@@ -67,6 +67,9 @@ def get_project(name, options = {})
       file.puts options[:ruby_version]
     end
   end
+  if options[:log_dir]
+    FileUtils.mkdir File.join(project_path, 'log')
+  end
   Project.new(project_path)
 end
 
