@@ -59,6 +59,8 @@ def get_project(name, options = {})
     Command.new("git clone #{repository_path} #{project_path}").run
   else
     FileUtils.mkdir project_path unless File.exists?(project_path)
+    # Initialize an empty git repository so that the git commands run into the project directory don't affect the nitpicker directory.
+    Command.new("cd #{project_path} && git init").run
   end
   if options[:ruby_version]
     File.open(File.join(project_path(name), '.ruby-version'), 'w') do |file|
