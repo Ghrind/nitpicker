@@ -193,10 +193,13 @@ class Nitpicker
       end
       return false
     end
-    unless build_log_exists?(project, revision)
+    if status = build_status(project, revision)
+      return status == :success
+    else
       io.puts "Starting build for #{project.name} @ #{revision} (#{Time.now.strftime('%Y-%m-%d %H:%M:%S')})" if io
       success = false
-      File.open(build_log_path(project, revision), 'w') do |f|
+      log_path = build_log_path(project, revision)
+      File.open(log_path, 'w') do |f|
         begin
           f << project.build(revision)
           success = true
@@ -205,9 +208,15 @@ class Nitpicker
         end
       end
       if success
-        io.puts "Build ok for #{project.name} @ #{revision}".green if io
+        FileUtils.mv log_path, build_log_path(project, revision, :succeed)
+        io.puts "Build succeed for #{project.name} @ #{revision}.".green if io
       else
-        io.puts "Build failed for #{project.name} @ #{revision}".red if io
+        failed_log_path = build_log_path(project, revision, :failed)
+        FileUtils.mv log_path, failed_log_path
+        if io
+          io.puts "Build failed for #{project.name} @ #{revision}.".red
+          io.puts "See #{failed_log_path} for more information."
+        end
         return false
       end
     end
@@ -222,20 +231,26 @@ class Nitpicker
   # @param project [Project]
   # @param revision [String] A git revision hash
   # @return [String] The path of the build log for given project/revision
-  def build_log_path(project, revision)
+  def build_log_path(project, revision, status = nil)
     short_rev = revision[0..6]
-    if File.directory?(File.join(project.working_dir, 'log'))
-      File.join(project.working_dir, 'log', short_rev + '.log')
+    path = if File.directory?(File.join(project.working_dir, 'log'))
+      File.join(project.working_dir, 'log', short_rev)
     else
-      File.join(project.working_dir, short_rev + '.log')
+      File.join(project.working_dir, short_rev)
     end
+    if status.to_s != ''
+      path << ".#{status}"
+    end
+    path + '.log'
   end
 
   # @param project [Project]
   # @param revision [String] A git revision hash
-  # @return [TrueClass,FalseClass] Wether the build log exists for the project/revision couple
-  def build_log_exists?(project, revision)
-    File.exists?(build_log_path(project, revision))
+  # @return [Symbol,NilClass] Return nil if there is no build log, return :success or :failure depanding on build status otherwise.
+  def build_status(project, revision)
+    return :success if File.exists?(build_log_path(project, revision, :succeed))
+    return :failure if File.exists?(build_log_path(project, revision, :failed))
+    nil
   end
 
 end

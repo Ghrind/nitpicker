@@ -17,32 +17,50 @@ describe Nitpicker do
 
   describe '#build_log_path' do
     context 'when the log directory exists' do
+      before do
+        @project = get_project('foobar', log_dir: true)
+      end
       it "should return the path for given project, revision" do
-        project = get_project('foobar', log_dir: true)
-        Nitpicker.new(test_working_path).send(:build_log_path, project, 'my_revision').should == project_path(project.name) + '/log/my_revi.log'
+        Nitpicker.new(test_working_path).send(:build_log_path, @project, 'my_revision').should == project_path(@project.name) + '/log/my_revi.log'
+      end
+      it 'should add status string' do
+        expect(Nitpicker.new(test_working_path).send(:build_log_path, @project, 'my_revision', :failed)).to eq project_path(@project.name) + '/log/my_revi.failed.log'
       end
     end
     context "when the log directory doesn't exist" do
+      before do
+        @project = get_project('foobar')
+      end
       it "should return the path for given project, revision" do
-        project = get_project('foobar')
-        Nitpicker.new(test_working_path).send(:build_log_path, project, 'my_revision').should == project_path(project.name) + '/my_revi.log'
+        Nitpicker.new(test_working_path).send(:build_log_path, @project, 'my_revision').should == project_path(@project.name) + '/my_revi.log'
+      end
+      it 'should add status string' do
+        expect(Nitpicker.new(test_working_path).send(:build_log_path, @project, 'my_revision', :failed)).to eq project_path(@project.name) + '/my_revi.failed.log'
       end
     end
   end
 
-  describe '#build_log_exists?' do
-    context "when the file exists" do
-      it "should return true" do
+  describe '#build_status' do
+    context "when the success file exists" do
+      it "should return :success" do
         nitpicker = Nitpicker.new(test_working_path)
         project = get_project('foobar')
-        File.open(nitpicker.send(:build_log_path, project, 'my_revision'), 'w'){ |f| f << 'foobar' }
-        Nitpicker.new(test_working_path).send(:build_log_exists?, project, 'my_revision').should be_true
+        File.open(nitpicker.send(:build_log_path, project, 'my_revision', :succeed), 'w'){ |f| f << 'foobar' }
+        Nitpicker.new(test_working_path).send(:build_status, project, 'my_revision').should eq :success
+      end
+    end
+    context "when the success file exists" do
+      it "should return :failure" do
+        nitpicker = Nitpicker.new(test_working_path)
+        project = get_project('foobar')
+        File.open(nitpicker.send(:build_log_path, project, 'my_revision', :failed), 'w'){ |f| f << 'foobar' }
+        Nitpicker.new(test_working_path).send(:build_status, project, 'my_revision').should eq :failure
       end
     end
     context "when the file does not exist" do
-      it "should return false" do
+      it "should return nil" do
         project = get_project('foobar')
-        Nitpicker.new(test_working_path).send(:build_log_exists?, project, 'my_revision').should be_false
+        Nitpicker.new(test_working_path).send(:build_status, project, 'my_revision').should be_nil
       end
     end
   end
@@ -127,14 +145,23 @@ describe Nitpicker do
       before do
         @project.should_receive(:update)
         @project.should_receive(:latest_revision).and_return('my_revision')
-        @nitpicker.should_receive(:build_log_exists?).with(@project, 'my_revision').and_return true
       end
       it "should do nothing" do
+        @nitpicker.should_receive(:build_status).with(@project, 'my_revision').and_return :success
         @project.should_not_receive(:build)
         @nitpicker.send(:update_and_build, @project)
       end
-      it "should return true" do
-        @nitpicker.send(:update_and_build, @project).should be_true
+      context "when the last build was a success" do
+        it "should return true" do
+          @nitpicker.should_receive(:build_status).with(@project, 'my_revision').and_return :success
+          @nitpicker.send(:update_and_build, @project).should be_true
+        end
+      end
+      context "when the last build was a failure" do
+        it "should return false" do
+          @nitpicker.should_receive(:build_status).with(@project, 'my_revision').and_return :failure
+          @nitpicker.send(:update_and_build, @project).should be_false
+        end
       end
     end
 
@@ -142,22 +169,28 @@ describe Nitpicker do
       before do
         @project.should_receive(:update)
         @project.should_receive(:latest_revision).and_return('my_revision')
-        @nitpicker.should_receive(:build_log_exists?).with(@project, 'my_revision').and_return false
+        @nitpicker.should_receive(:build_status).with(@project, 'my_revision').and_return nil
       end
       it "should build project" do
         @project.should_receive(:build)
         @nitpicker.send(:update_and_build, @project)
       end
       context "when build succeed" do
-        it "should return true" do
+        before do
           @project.should_receive(:build)
+        end
+        it "should return true" do
           @nitpicker.send(:update_and_build, @project).should be_true
         end
+        it 'should rename the log file' do
+          @nitpicker.send(:update_and_build, @project)
+          expect(File.exists?(@nitpicker.send(:build_log_path, @project, 'my_revision'))).to be_false
+          expect(File.exists?(@nitpicker.send(:build_log_path, @project, 'my_revision', 'succeed'))).to be_true
+        end
         it "should issue an OK message" do
-          @project.should_receive(:build)
           @nitpicker.send(:update_and_build, @project, @io)
           @io.rewind
-          @io.read.should =~ /Build ok/
+          @io.read.should =~ /Build succeed/
         end
       end
       context "when build fails" do
@@ -166,6 +199,11 @@ describe Nitpicker do
         end
         it "should return false" do
           @nitpicker.send(:update_and_build, @project).should be_false
+        end
+        it 'should rename the log file' do
+          @nitpicker.send(:update_and_build, @project)
+          expect(File.exists?(@nitpicker.send(:build_log_path, @project, 'my_revision'))).to be_false
+          expect(File.exists?(@nitpicker.send(:build_log_path, @project, 'my_revision', 'failed'))).to be_true
         end
         it "should issue an error message" do
           @nitpicker.send(:update_and_build, @project, @io)
